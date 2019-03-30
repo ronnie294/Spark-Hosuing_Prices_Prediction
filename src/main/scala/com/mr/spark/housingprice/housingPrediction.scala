@@ -7,7 +7,11 @@ import org.apache.spark.ml.regression.LinearRegression
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.{SparkConf, SparkContext}
 
-
+/**
+  * Housing price prediction using MLlib. Only Linear regression using all
+  * numeric features only.
+  * ToDo: Feature extraction using correlation to predict.
+  */
 object housingPrediction {
 
 
@@ -212,7 +216,7 @@ object housingPrediction {
 
     val trainingSummary = lrModel.summary
 
-   // print("Columnsssss")
+    // print("Columnsssss")
     lrModel.transform(testecommDF2).select("prediction").rdd.saveAsTextFile(args(1))
 
     println(s"numIterations: ${trainingSummary.totalIterations}")
