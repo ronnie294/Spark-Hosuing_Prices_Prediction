@@ -1,5 +1,8 @@
 package com.mr.spark.housingprice
 
+/**
+  *Class to represent a record for housing features.
+  */
 case class Record(
 
                    MSSubclass: Double,
