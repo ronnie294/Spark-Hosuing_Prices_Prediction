@@ -2,10 +2,14 @@ package com.mr.spark.housingprice
 
 
 import org.apache.log4j.LogManager
-import org.apache.spark.ml.feature.VectorAssembler
-import org.apache.spark.ml.regression.LinearRegression
+import org.apache.spark.ml.classification.RandomForestClassifier
+import org.apache.spark.ml.evaluation.{BinaryClassificationEvaluator, RegressionEvaluator}
+import org.apache.spark.ml.feature.{StringIndexer, VectorAssembler}
+import org.apache.spark.ml.regression.{LinearRegression, RandomForestRegressor}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.mllib.tree.RandomForest
+import org.apache.spark.mllib.tree.model.RandomForestModel
 
 /**
   * Housing price prediction using MLlib. Only Linear regression using all
@@ -28,19 +32,21 @@ object housingPrediction {
     val sparkSession = SparkSession.builder.
       master("local")
       .appName("example")
+    .config("spark.memory.offHeap.enabled",true)
+      .config("spark.memory.offHeap.size","16g")
       .getOrCreate()
     import sparkSession.implicits._
 
 
     var inputDataRDD = sc.textFile(args(0) + "/train.csv")
-    var testDataRDD = sc.textFile(args(0) + "/test.csv")
+   // var testDataRDD = sc.textFile(args(0) + "/test.csv")
     val header = inputDataRDD.first()
 
     inputDataRDD = inputDataRDD.filter(row => row != header)
-    val testHeader = testDataRDD.first()
-    testDataRDD = testDataRDD.filter(row => row != testHeader)
+   // val testHeader = testDataRDD.first()
+   // testDataRDD = testDataRDD.filter(row => row != testHeader)
     val inputDataSplitRDD = inputDataRDD.map(line => line.split(","))
-    val testDataSplitRDD = testDataRDD.map(line => line.split(","))
+    //val testDataSplitRDD = testDataRDD.map(line => line.split(","))
 
     def parseInt(a: String): Int = {
       if (a != "NA")
@@ -72,7 +78,7 @@ object housingPrediction {
       p(70).toDouble, p(71), p(72), p(73), p(74), p(75).toInt, p(76).toInt, p
       (77), p(78), p(79).toInt, p(80).toDouble))
 
-    val testDataMapRDD = testDataSplitRDD.map(p => Record(p(0).toDouble, p
+   /* val testDataMapRDD = testDataSplitRDD.map(p => Record(p(0).toDouble, p
     (1), parseDouble(p(2)), p(3).toDouble, p(4), p(5), p(6), p(7), p(8), p(9),
       p(10), p(11), p(12), p(13), p(14), p(15), p(16).toInt, p(17).toInt, p
       (18).toInt, p(19).toInt,
@@ -90,9 +96,9 @@ object housingPrediction {
         .toDouble, p(67).toDouble, p(68).toDouble, p(69).toDouble,
       p(70).toDouble, p(71), p(72), p(73), p(74), p(75).toInt, p(76).toInt, p
       (77), p(78), p(79).toInt, 0.0))
-
+*/
     val ecommDF = inputDataMapRDD.toDF()
-    val testecommDF = testDataMapRDD.toDF()
+ //   val testecommDF = testDataMapRDD.toDF()
     //print("utark"+ecommDF.head(10))
 
     val ecommDF1 = ecommDF.select(ecommDF("SalePrice").as("label"),
@@ -129,7 +135,7 @@ object housingPrediction {
       $"id",
       $"SalePrice")
 
-    val testecommDF1 = testecommDF.select(
+  /*  val testecommDF1 = testecommDF.select(
       $"MSSubClass", $"LotFrontage", $"LotArea", $"OverallQual",
       $"OverallCond",
       $"YearBuilt",
@@ -160,7 +166,7 @@ object housingPrediction {
       $"PoolArea",
       $"MoSold",
       $"YrSold",
-      $"id")
+      $"id")*/
 
     val assembler = new VectorAssembler().setInputCols(Array("MSSubClass",
       "LotFrontage",
@@ -203,7 +209,44 @@ object housingPrediction {
     //assembler: org.apache.spark.ml.feature.VectorAssembler =
     // vecAssembler_4c5ea5e20741
     val ecommDF2 = assembler.transform(ecommDF1).select($"label", $"features")
-    val testecommDF2 = assembler.transform(testecommDF1).select($"features")
+  //  val testecommDF2 = assembler.transform(testecommDF1).select($"features")
+
+    //random
+    //val labelIndexer = new StringIndexer().setInputCol("label")//.setOutputCol("label")
+    //val df3 = labelIndexer.fit(ecommDF1).transform(ecommDF1)
+
+  //  val df3test = labelIndexer.fit(testecommDF2).transform(testecommDF2)
+
+    val splitSeed = 5043
+    val Array(trainingData, testData) = ecommDF2.randomSplit(Array(0.7, 0.3), splitSeed)
+
+    /*val classifier = new RandomForestClassifier().setImpurity("variance").setMaxDepth(10).setNumTrees(500).setFeatureSubsetStrategy("auto").setSeed(5043)
+
+    val model = classifier.fit(trainingData)*/
+   /* val numClasses = 2
+    val categoricalFeaturesInfo = Map[Int, Int]()
+    val numTrees = 3 // Use more in practice.
+    val featureSubsetStrategy = "auto" // Let the algorithm choose.
+    val impurity = "variance"
+    val maxDepth = 4
+    val maxBins = 32*/
+
+    val classifier = new RandomForestRegressor().setImpurity("variance").setMaxDepth(10).setNumTrees(500).setFeatureSubsetStrategy("auto").setSeed(5043)
+
+    val model = classifier.fit(trainingData)
+    val predictions = model.transform(ecommDF2)
+    predictions.select("prediction", "label", "features").show(5)
+
+    val evaluator = new RegressionEvaluator()
+      .setLabelCol("label")
+      .setPredictionCol("prediction")
+      .setMetricName("rmse")
+    val rmse = evaluator.evaluate(predictions)
+    println("Random Forest rmse=" ,rmse)
+    model.toDebugString
+
+  //  val predictions = model.transform(df3test)
+  // predictions.show()
 
     val lr = new LinearRegression()
 
@@ -216,8 +259,9 @@ object housingPrediction {
 
     val trainingSummary = lrModel.summary
 
+
     // print("Columnsssss")
-    lrModel.transform(testecommDF2).select("prediction").rdd.saveAsTextFile(args(1))
+    lrModel.transform(ecommDF2).select("prediction").rdd.saveAsTextFile(args(1))
 
     println(s"numIterations: ${trainingSummary.totalIterations}")
     println(s"objectiveHistory: ${trainingSummary.objectiveHistory.toList}")
