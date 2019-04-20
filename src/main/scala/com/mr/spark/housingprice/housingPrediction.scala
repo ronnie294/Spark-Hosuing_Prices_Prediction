@@ -38,8 +38,8 @@ object housingPrediction {
     var inputDataRDD = sc.textFile(args(0) + "/train.csv")
 
     //Remove the header and split the rdd
-    val inputDataSplitRDD = inputDataRDD.filter(row => row != inputDataRDD
-      .first()).map(line => line.split(","))
+    val header = inputDataRDD.first()
+    val inputDataSplitRDD = inputDataRDD.filter(row => row != header).map(line => line.split(","))
     // val inputDataSplitRDD = inputDataRDD.map(line => line.split(","))
 
     def parseInt(a: String): Int = {
@@ -150,17 +150,19 @@ object housingPrediction {
 
     val trainDFTransformed = assembler.transform(trainDF).select($"label",
       $"features")
+
+
     //Variables needed for Random Forest
     val splitSeed = 5043
     val noOfTrees = 500
-    val maxDepth = 10
-
+    val maxDepth = 30
+    val Array(trainingData, testData) = trainDFTransformed.randomSplit(Array(0.7, 0.3), splitSeed)
     val classifier = new RandomForestRegressor().setImpurity("variance")
       .setMaxDepth(maxDepth).setNumTrees(noOfTrees).setFeatureSubsetStrategy("auto")
       .setSeed(splitSeed)
 
-    val rfModel = classifier.fit(trainDFTransformed)
-    val predictions = rfModel.transform(trainDFTransformed)
+    val rfModel = classifier.fit(trainingData)
+    val predictions = rfModel.transform(trainingData)
     predictions.select("prediction", "label", "features").show(5)
 
     val evaluator = new RegressionEvaluator()
